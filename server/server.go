@@ -137,13 +137,12 @@ func startHTTPServer(model *models.SubDomainModel) {
 			return
 		}
 
-		// status check
 		if row.Status != 1 || row.IsBanned == 1 {
 			sendHTML(w)
 			return
 		}
 
-		// active session check
+		// session check
 		mu.RLock()
 		session := sessions[sub]
 		mu.RUnlock()
@@ -158,9 +157,42 @@ func startHTTPServer(model *models.SubDomainModel) {
 			sendHTML(w)
 			return
 		}
+
+		// 🔥 if websocket upgrade, do raw tcp pipe
+		if strings.ToLower(r.Header.Get("Upgrade")) == "websocket" {
+			hj, ok := w.(http.Hijacker)
+			if !ok {
+				sendHTML(w)
+				stream.Close()
+				return
+			}
+
+			clientConn, _, err := hj.Hijack()
+			if err != nil {
+				sendHTML(w)
+				stream.Close()
+				return
+			}
+
+			// send request to tunnel
+			r.RequestURI = ""
+			err = r.Write(stream)
+			if err != nil {
+				clientConn.Close()
+				stream.Close()
+				return
+			}
+
+			// bi-directional pipe (ws)
+			go io.Copy(stream, clientConn)
+			go io.Copy(clientConn, stream)
+
+			return
+		}
+
+		// normal HTTP
 		defer stream.Close()
 
-		// clone request
 		reqClone := new(http.Request)
 		*reqClone = *r
 		reqClone.RequestURI = ""
@@ -172,7 +204,6 @@ func startHTTPServer(model *models.SubDomainModel) {
 			return
 		}
 
-		// read response
 		resp, err := http.ReadResponse(bufio.NewReader(stream), reqClone)
 		if err != nil {
 			sendHTML(w)
@@ -193,6 +224,7 @@ func startHTTPServer(model *models.SubDomainModel) {
 	log.Println("HTTP server running on :4000")
 	log.Fatal(http.ListenAndServe(":4000", nil))
 }
+
 
 // ==========================
 // TUNNEL SERVER
