@@ -5,76 +5,113 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/hashicorp/yamux"
 )
 
-const (
-	VPS_ADDR = "127.0.0.1:7000"
-	LOCAL_ADDR = "127.0.0.1:3000"
-	SUBDOMAIN ="a"
-	TOKEN = "secret123"
-)
+type Config struct {
+	Details struct {
+		Server     string `json:"SERVER"`
+		ServerPort string `json:"SERVER_PORT"`
+		UserName   string `json:"USER_NAME"`
+		Token      string `json:"TOKEN"`
+		LocalPort  string `json:"LOCAL_PORT"`
+	} `json:"details"`
+}
+
+func LoadConfig() (*Config, error) {
+	file, err := os.ReadFile("config.json")
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg Config
+	err = json.Unmarshal(file, &cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
 
 type RegisterMsg struct {
-	Type  string  `json:"type"`
+	Type      string `json:"type"`
 	Subdomain string `json:"subdomain"`
-	Token  string `json:"token"`
+	Token     string `json:"token"`
 }
 
-func main(){
-	for{
-		err := startClient()
-		log.Println("Disconnected. Reconnecting in 3 seconds ... ",err)
-		time.Sleep(3*time.Second)
-	}
-}
+func main() {
 
-
-func startClient()error{
-	conn,err := net.Dial("tcp",VPS_ADDR)
+	cfg, err := LoadConfig()
 	if err != nil {
-		return  err
-	}
-	defer  conn.Close()
-	reg :=RegisterMsg{
-		Type: "register",
-		Subdomain: SUBDOMAIN,
-		Token: TOKEN,
+		log.Fatal("Config load error:", err)
 	}
 
-	b,_:=json.Marshal(reg)
-	b=append(b, '\n')
-	_, err = conn.Write(b)
-	if err!=nil{
-		return   err
-	}
+	vpsAddr := cfg.Details.Server + ":" + cfg.Details.ServerPort
+	
+	localAddr := "127.0.0.1:" + cfg.Details.LocalPort
 
-
-	log.Println("Registered subdomain:", SUBDOMAIN)
-
-	session, err := yamux.Client(conn, nil)
+	subdomain := cfg.Details.UserName
+	token := cfg.Details.Token
 
 	for {
-		stream,err:=session.Accept()
-		if err!=nil{
-			return err
-		}
-		go handleStream(stream)
+		err := startClient(vpsAddr, localAddr, subdomain, token)
+		log.Println("Disconnected. Reconnecting in 3 seconds...", err)
+		time.Sleep(3 * time.Second)
 	}
 }
 
-func handleStream(stream net.Conn) {
+func startClient(vpsAddr string, localAddr string, subdomain string, token string) error {
+
+	conn, err := net.Dial("tcp", vpsAddr)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	reg := RegisterMsg{
+		Type:      "register",
+		Subdomain: subdomain,
+		Token:     token,
+	}
+
+	b, _ := json.Marshal(reg)
+	b = append(b, '\n')
+
+	_, err = conn.Write(b)
+	if err != nil {
+		return err
+	}
+
+	log.Println("Registered subdomain:", subdomain)
+
+	session, err := yamux.Client(conn, nil)
+	if err != nil {
+		return err
+	}
+
+	for {
+		stream, err := session.Accept()
+		if err != nil {
+			return err
+		}
+
+		go handleStream(stream, localAddr)
+	}
+}
+
+func handleStream(stream net.Conn, localAddr string) {
 	defer stream.Close()
 
-	localConn,err :=net.Dial("tcp",LOCAL_ADDR)
-	if err !=nil{
-		log.Println("Local service connection failed:",err)
+	localConn, err := net.Dial("tcp", localAddr)
+	if err != nil {
+		log.Println("Local service connection failed:", err)
 		return
 	}
 	defer localConn.Close()
-	go io.Copy(localConn,stream)
 
-	io.Copy(stream,localConn)
+	go io.Copy(localConn, stream)
+	io.Copy(stream, localConn)
 }

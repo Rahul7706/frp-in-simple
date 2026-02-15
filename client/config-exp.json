@@ -1,0 +1,9 @@
+{
+    "details": {
+        "SERVER": "YOUR_SERVER",
+        "USER_NAME": "YOUR_USER",
+        "SERVER_PORT": "7000",
+        "TOKEN": "USER_TOKEN",
+        "LOCAL_PORT": "3000"
+    }
+}
