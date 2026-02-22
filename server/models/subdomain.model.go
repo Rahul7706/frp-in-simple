@@ -65,6 +65,7 @@ type SubDomain struct {
 	IsBanned        bool        `bson:"isBanned" json:"isBanned"`
 	IP              string      `bson:"ipAddress,omitempty" json:"ipAddress,omitempty"`
 	UserAgent       string      `bson:"userAgent,omitempty" json:"userAgent,omitempty"`
+	Sessions        string      `bson:"sessions,omitempty" json:"sessions,omitempty"`
 	FailedAuthCount int         `bson:"failedAuthCount,omitempty" json:"failedAuthCount,omitempty"`
 }
 
@@ -89,7 +90,7 @@ func (m *SubDomainModel) GetBySubdomain(subdomain string) (*SubDomain, error) {
 	var sd SubDomain
 	err := m.Collection.FindOne(ctx, bson.M{"subdomain": subdomain}).Decode(&sd)
 	if err != nil {
-			// log.Println(err)
+		// log.Println(err)
 		return nil, err
 	}
 	// log.Println(&sd,subdomain)
@@ -99,7 +100,7 @@ func (m *SubDomainModel) GetBySubdomain(subdomain string) (*SubDomain, error) {
 func (m *SubDomainModel) UpdateByKey(subdomain string, key string, value interface{}) error {
 
 	allowed := map[string]bool{
-		"status":       true,
+		"status":      true,
 		"isConnected": true,
 		"isBanned":    true,
 	}
@@ -129,9 +130,9 @@ func (m *SubDomainModel) MarkConnected(subdomain string, ip string, userAgent st
 		bson.M{"subdomain": subdomain},
 		bson.M{
 			"$set": bson.M{
-				"isConnected":      1,
-				"ip_address":        ip,
-				"user_agent":        userAgent,
+				"isConnected":     1,
+				"ip_address":      ip,
+				"user_agent":      userAgent,
 				"failedAuthCount": 0,
 			},
 		},
@@ -149,7 +150,7 @@ func (m *SubDomainModel) MarkDisconnected(subdomain string) error {
 		bson.M{"subdomain": subdomain},
 		bson.M{
 			"$set": bson.M{
-				"isConnected":         0,
+				"isConnected": 0,
 			},
 		},
 	)

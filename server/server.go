@@ -249,6 +249,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		return
 	}
 
+log.Println("generateSessionID")
 	// 🔥 ATOMIC DB LOCK (Prevent Double Connect)
 	sessionID := generateSessionID()
 
@@ -259,13 +260,12 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		ctx,
 		bson.M{
 			"subdomain":    sub,
-			"isConnected": 0,
+			"isConnected": false,
 		},
 		bson.M{
 			"$set": bson.M{
 				"isConnected": true,
 				"sessions":   sessionID,
-				"connected_at": time.Now(),
 			},
 		},
 	)
