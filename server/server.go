@@ -141,10 +141,17 @@ func startHTTPServer(model *models.SubDomainModel) {
 			return
 		}
 
-		if row.Status != true || row.IsBanned == true || row.IsConnected == false {
+		// 🔥 Only check active + banned
+		if !row.Status || row.IsBanned {
 			sendHTML(w)
 			return
 		}
+
+		// detect websocket properly
+		isWebSocket := strings.Contains(
+			strings.ToLower(r.Header.Get("Connection")),
+			"upgrade",
+		) && strings.ToLower(r.Header.Get("Upgrade")) == "websocket"
 
 		// session check
 		mu.RLock()
@@ -162,8 +169,11 @@ func startHTTPServer(model *models.SubDomainModel) {
 			return
 		}
 
-		// 🔥 if websocket upgrade, do raw tcp pipe
-		if strings.ToLower(r.Header.Get("Upgrade")) == "websocket" {
+		// ==========================
+		// 🔥 WEBSOCKET HANDLING
+		// ==========================
+		if isWebSocket {
+
 			hj, ok := w.(http.Hijacker)
 			if !ok {
 				sendHTML(w)
@@ -178,23 +188,36 @@ func startHTTPServer(model *models.SubDomainModel) {
 				return
 			}
 
-			// send request to tunnel
 			r.RequestURI = ""
-			err = r.Write(stream)
-			if err != nil {
+
+			// forward handshake to tunnel
+			if err := r.Write(stream); err != nil {
 				clientConn.Close()
 				stream.Close()
 				return
 			}
 
-			// bi-directional pipe (ws)
-			go io.Copy(stream, clientConn)
-			go io.Copy(clientConn, stream)
+			// mark connected in DB
+			model.UpdateByKey(sub, "isConnected", true)
+
+			// bidirectional pipe with proper close
+			go func() {
+				io.Copy(stream, clientConn)
+				stream.Close()
+			}()
+
+			go func() {
+				io.Copy(clientConn, stream)
+				clientConn.Close()
+			}()
 
 			return
 		}
 
-		// normal HTTP
+		// ==========================
+		// 🌍 NORMAL HTTP HANDLING
+		// ==========================
+
 		defer stream.Close()
 
 		reqClone := new(http.Request)
@@ -202,8 +225,7 @@ func startHTTPServer(model *models.SubDomainModel) {
 		reqClone.RequestURI = ""
 		reqClone.Header.Set("Connection", "close")
 
-		err = reqClone.Write(stream)
-		if err != nil {
+		if err := reqClone.Write(stream); err != nil {
 			sendHTML(w)
 			return
 		}
