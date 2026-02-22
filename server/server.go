@@ -216,7 +216,6 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 	if err := json.Unmarshal(line, &reg); err != nil {
 		return
 	}
-	log.Println(reg)
 	if reg.Type != "register" {
 		return
 	}
