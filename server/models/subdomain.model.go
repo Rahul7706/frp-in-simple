@@ -100,7 +100,6 @@ func (m *SubDomainModel) UpdateByKey(subdomain string, key string, value interfa
 		"status":       true,
 		"isConnected": true,
 		"isBanned":    true,
-		"token_hash":   true,
 	}
 
 	if !allowed[key] {
@@ -129,7 +128,6 @@ func (m *SubDomainModel) MarkConnected(subdomain string, ip string, userAgent st
 		bson.M{
 			"$set": bson.M{
 				"isConnected":      1,
-				"last_connected_at": time.Now(),
 				"ip_address":        ip,
 				"user_agent":        userAgent,
 				"failedAuthCount": 0,
@@ -150,7 +148,6 @@ func (m *SubDomainModel) MarkDisconnected(subdomain string) error {
 		bson.M{
 			"$set": bson.M{
 				"isConnected":         0,
-				"last_disconnected_at": time.Now(),
 			},
 		},
 	)
