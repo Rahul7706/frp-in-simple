@@ -15,9 +15,10 @@ import (
 	"sync"
 	"time"
 
+	"server_frp/models"
+
 	"github.com/hashicorp/yamux"
 	"go.mongodb.org/mongo-driver/bson"
-	"server_frp/models"
 )
 
 type RegisterMsg struct {
@@ -127,7 +128,7 @@ func startHTTPServer(model *models.SubDomainModel) {
 		sub := strings.ToLower(parts[0])
 
 		row, err := model.GetBySubdomain(sub)
-		if err != nil || row.Status != 1 || row.IsBanned == 1 || row.IsConnected != 1 {
+		if err != nil || row.Status != true || row.IsBanned == true || row.IsConnected != true {
 			sendHTML(w)
 			return
 		}
@@ -227,7 +228,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 
 	row, err := model.GetBySubdomain(sub)
 	log.Println(row)
-	if err != nil || row.Status != 1 || row.IsBanned == 1 {
+	if err != nil || row.Status != true || row.IsBanned == true {
 		return
 	}
 
@@ -242,7 +243,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		model.UpdateFailedAuth(sub)
 
 		if row.FailedAuthCount+1 >= MaxFailedAttempts {
-			model.UpdateByKey(sub, "isBanned", 1)
+			model.UpdateByKey(sub, "isBanned", true)
 		}
 		return
 	}
@@ -261,7 +262,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		},
 		bson.M{
 			"$set": bson.M{
-				"isConnected": 1,
+				"isConnected": true,
 				"sessions":   sessionID,
 				"connected_at": time.Now(),
 			},
@@ -276,7 +277,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 	// create yamux
 	session, err := yamux.Server(&bufferedConn{Conn: conn, reader: reader}, nil)
 	if err != nil {
-		model.UpdateByKey(sub, "is_connected", 0)
+		model.UpdateByKey(sub, "is_connected", false)
 		return
 	}
 
@@ -298,7 +299,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		bson.M{"subdomain": sub},
 		bson.M{
 			"$set": bson.M{
-				"isConnected": 0,
+				"isConnected": false,
 				"sessions":   "",
 			},
 		},

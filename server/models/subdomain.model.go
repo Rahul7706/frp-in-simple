@@ -56,15 +56,15 @@ func ConnectDB() (*mongo.Database, error) {
 }
 
 type SubDomain struct {
-	ID               interface{} `bson:"_id,omitempty" json:"id"`
-	Subdomain        string      `bson:"subdomain" json:"subdomain"`
-	TokenHash        string      `bson:"tokenHash" json:"tokenHash"`
-	Status           int         `bson:"status" json:"status"`
-	IsConnected      int         `bson:"isConnected" json:"isConnected"`
-	IsBanned         int         `bson:"isBanned" json:"isBanned"`
-	IP               string      `bson:"ip_address,omitempty" json:"ip_address,omitempty"`
-	UserAgent        string      `bson:"user_agent,omitempty" json:"user_agent,omitempty"`
-	FailedAuthCount  int         `bson:"failedAuthCount,omitempty" json:"failedAuthCount,omitempty"`
+	ID              interface{} `bson:"_id,omitempty" json:"id"`
+	Subdomain       string      `bson:"subdomain" json:"subdomain"`
+	TokenHash       string      `bson:"tokenHash" json:"tokenHash"`
+	Status          bool        `bson:"status" json:"status"`
+	IsConnected     bool        `bson:"isConnected" json:"isConnected"`
+	IsBanned        bool        `bson:"isBanned" json:"isBanned"`
+	IP              string      `bson:"ipAddress,omitempty" json:"ipAddress,omitempty"`
+	UserAgent       string      `bson:"userAgent,omitempty" json:"userAgent,omitempty"`
+	FailedAuthCount int         `bson:"failedAuthCount,omitempty" json:"failedAuthCount,omitempty"`
 }
 
 type SubDomainModel struct {
