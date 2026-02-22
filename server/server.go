@@ -227,14 +227,11 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 	}
 
 	row, err := model.GetBySubdomain(sub)
-	log.Println(row.Status,row.IsBanned,err)
 	if err != nil || row.Status != true || row.IsBanned == true {
 		return
 	}
 
-	log.Println("clientHash")
 	clientHash := reg.Token
-	log.Println(clientHash)
 
 	if subtle.ConstantTimeCompare(
 		[]byte(clientHash),
@@ -249,7 +246,6 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		return
 	}
 
-log.Println("generateSessionID")
 	// 🔥 ATOMIC DB LOCK (Prevent Double Connect)
 	sessionID := generateSessionID()
 

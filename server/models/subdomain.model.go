@@ -172,3 +172,21 @@ func (m *SubDomainModel) UpdateFailedAuth(subdomain string) error {
 
 	return err
 }
+
+func (m *SubDomainModel) ResetNightSessions() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err := m.Collection.UpdateMany(
+		ctx,
+		bson.M{},
+		bson.M{
+			"$set": bson.M{
+				"isConnected": false,
+				"sessions":    "",
+			},
+		},
+	)
+
+	return err
+}
