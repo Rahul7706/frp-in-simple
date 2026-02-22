@@ -44,7 +44,6 @@ func generateSessionID() string {
 	return hex.EncodeToString(b)
 }
 
-
 func sendHTML(w http.ResponseWriter) {
 	defaultErrorResponse := `<!DOCTYPE html>
 <html>
@@ -80,8 +79,6 @@ func sendHTML(w http.ResponseWriter) {
 	w.Write([]byte(defaultErrorResponse))
 }
 
-
-
 func recoverSafe(name string) {
 	if r := recover(); r != nil {
 		log.Println("Recovered panic in", name, ":", r)
@@ -114,9 +111,19 @@ func startHTTPServer(model *models.SubDomainModel) {
 		defer recoverSafe("HTTP_HANDLER")
 
 		host := r.Host
+		if host == "" {
+			sendHTML(w)
+			return
+		}
+
+		// remove port
 		if strings.Contains(host, ":") {
-			h, _, _ := net.SplitHostPort(host)
-			host = h
+			h, _, err := net.SplitHostPort(host)
+			if err == nil {
+				host = h
+			} else {
+				host = strings.Split(host, ":")[0]
+			}
 		}
 
 		parts := strings.Split(host, ".")
@@ -127,12 +134,19 @@ func startHTTPServer(model *models.SubDomainModel) {
 
 		sub := strings.ToLower(parts[0])
 
+		// DB check
 		row, err := model.GetBySubdomain(sub)
-		if err != nil || row.Status != true || row.IsBanned == true || row.IsConnected != true {
+		if err != nil {
 			sendHTML(w)
 			return
 		}
 
+		if row.Status != true || row.IsBanned == true || row.IsConnected == false {
+			sendHTML(w)
+			return
+		}
+
+		// session check
 		mu.RLock()
 		session := sessions[sub]
 		mu.RUnlock()
@@ -147,17 +161,56 @@ func startHTTPServer(model *models.SubDomainModel) {
 			sendHTML(w)
 			return
 		}
-		defer stream.Close()
 
-		r.RequestURI = ""
-		r.Header.Set("Connection", "close")
+		// 🔥 if websocket upgrade, do raw tcp pipe
+		if strings.ToLower(r.Header.Get("Upgrade")) == "websocket" {
+			hj, ok := w.(http.Hijacker)
+			if !ok {
+				sendHTML(w)
+				stream.Close()
+				return
+			}
 
-		if err := r.Write(stream); err != nil {
+			clientConn, _, err := hj.Hijack()
+			if err != nil {
+				sendHTML(w)
+				stream.Close()
+				return
+			}
+
+			// send request to tunnel
+			r.RequestURI = ""
+			err = r.Write(stream)
+			if err != nil {
+				clientConn.Close()
+				stream.Close()
+				return
+			}
+
+			// bi-directional pipe (ws)
+			go io.Copy(stream, clientConn)
+			go io.Copy(clientConn, stream)
+
 			return
 		}
 
-		resp, err := http.ReadResponse(bufio.NewReader(stream), r)
+		// normal HTTP
+		defer stream.Close()
+
+		reqClone := new(http.Request)
+		*reqClone = *r
+		reqClone.RequestURI = ""
+		reqClone.Header.Set("Connection", "close")
+
+		err = reqClone.Write(stream)
 		if err != nil {
+			sendHTML(w)
+			return
+		}
+
+		resp, err := http.ReadResponse(bufio.NewReader(stream), reqClone)
+		if err != nil {
+			sendHTML(w)
 			return
 		}
 		defer resp.Body.Close()
@@ -227,7 +280,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 	}
 
 	row, err := model.GetBySubdomain(sub)
-	if err != nil || row.Status != true || row.IsBanned == true || row.IsConnected == true  {
+	if err != nil || row.Status != true || row.IsBanned == true || row.IsConnected == true {
 		return
 	}
 
@@ -255,13 +308,13 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 	res, err := model.Collection.UpdateOne(
 		ctx,
 		bson.M{
-			"subdomain":    sub,
+			"subdomain":   sub,
 			"isConnected": false,
 		},
 		bson.M{
 			"$set": bson.M{
 				"isConnected": true,
-				"sessions":   sessionID,
+				"sessions":    sessionID,
 			},
 		},
 	)
@@ -297,7 +350,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		bson.M{
 			"$set": bson.M{
 				"isConnected": false,
-				"sessions":   "",
+				"sessions":    "",
 			},
 		},
 	)
