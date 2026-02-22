@@ -228,7 +228,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 
 	row, err := model.GetBySubdomain(sub)
 	log.Println(row.Status,row.IsBanned,err)
-	if err != nil || row.Status != true || row.IsBanned == true {
+	if err != nil || row.Status != false || row.IsBanned == true {
 		return
 	}
 
