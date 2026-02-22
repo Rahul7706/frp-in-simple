@@ -1,21 +1,21 @@
 package models
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Config struct {
 	DB struct {
-		User     string `json:"user"`
-		Password string `json:"password"`
-		Host     string `json:"host"`
-		Port     int    `json:"port"`
-		Name     string `json:"name"`
+		URI      string `json:"uri"`
+		Database string `json:"database"`
 	} `json:"db"`
 }
 
@@ -34,47 +34,45 @@ func LoadConfig() (*Config, error) {
 	return &cfg, nil
 }
 
-func ConnectDB() (*sql.DB, error) {
+func ConnectDB() (*mongo.Database, error) {
 	cfg, err := LoadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
-		cfg.DB.User,
-		cfg.DB.Password,
-		cfg.DB.Host,
-		cfg.DB.Port,
-		cfg.DB.Name,
-	)
+	clientOptions := options.Client().ApplyURI(cfg.DB.URI)
 
-	db, err := sql.Open("mysql", dsn)
+	client, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	// test connection
-	err = db.Ping()
+	err = client.Ping(context.Background(), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return db, nil
+	return client.Database(cfg.DB.Database), nil
 }
 
 type SubDomain struct {
-	ID          int64  `json:"id"`
-	Subdomain   string `json:"subdomain"`
-	TokenHash   string `json:"token_hash"`
-	Status      int    `json:"status"`
-	IsConnected int    `json:"is_connected"`
-	IsBanned    int    `json:"is_banned"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
+	ID               interface{} `bson:"_id,omitempty" json:"id"`
+	Subdomain        string      `bson:"subdomain" json:"subdomain"`
+	TokenHash        string      `bson:"token_hash" json:"token_hash"`
+	Status           int         `bson:"status" json:"status"`
+	IsConnected      int         `bson:"is_connected" json:"is_connected"`
+	IsBanned         int         `bson:"is_banned" json:"is_banned"`
+	IP               string      `bson:"ip_address,omitempty" json:"ip_address,omitempty"`
+	UserAgent        string      `bson:"user_agent,omitempty" json:"user_agent,omitempty"`
+	FailedAuthCount  int         `bson:"failed_auth_count,omitempty" json:"failed_auth_count,omitempty"`
+	LastConnectedAt  time.Time   `bson:"last_connected_at,omitempty" json:"last_connected_at,omitempty"`
+	LastDisconnectAt time.Time   `bson:"last_disconnected_at,omitempty" json:"last_disconnected_at,omitempty"`
+	CreatedAt        time.Time   `bson:"created_at,omitempty" json:"created_at,omitempty"`
+	UpdatedAt        time.Time   `bson:"updated_at,omitempty" json:"updated_at,omitempty"`
 }
 
 type SubDomainModel struct {
-	DB *sql.DB
+	Collection *mongo.Collection
 }
 
 func NewSubDomainModel() (*SubDomainModel, error) {
@@ -83,25 +81,17 @@ func NewSubDomainModel() (*SubDomainModel, error) {
 		return nil, err
 	}
 
-	return &SubDomainModel{DB: db}, nil
+	return &SubDomainModel{
+		Collection: db.Collection("sub_domain_list"),
+	}, nil
 }
 
 func (m *SubDomainModel) GetBySubdomain(subdomain string) (*SubDomain, error) {
-	query := `SELECT id, subdomain, token_hash, status, is_connected, is_banned, created_at, updated_at
-			  FROM sub_domain_list WHERE subdomain = ? LIMIT 1`
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	var sd SubDomain
-	err := m.DB.QueryRow(query, subdomain).Scan(
-		&sd.ID,
-		&sd.Subdomain,
-		&sd.TokenHash,
-		&sd.Status,
-		&sd.IsConnected,
-		&sd.IsBanned,
-		&sd.CreatedAt,
-		&sd.UpdatedAt,
-	)
-
+	err := m.Collection.FindOne(ctx, bson.M{"subdomain": subdomain}).Decode(&sd)
 	if err != nil {
 		return nil, err
 	}
@@ -109,9 +99,7 @@ func (m *SubDomainModel) GetBySubdomain(subdomain string) (*SubDomain, error) {
 	return &sd, nil
 }
 
-
-
-func (m *SubDomainModel) UpdateByKey(subdomain string, key string, value any) error {
+func (m *SubDomainModel) UpdateByKey(subdomain string, key string, value interface{}) error {
 
 	allowed := map[string]bool{
 		"status":       true,
@@ -124,46 +112,68 @@ func (m *SubDomainModel) UpdateByKey(subdomain string, key string, value any) er
 		return fmt.Errorf("invalid update key: %s", key)
 	}
 
-	query := fmt.Sprintf("UPDATE sub_domain_list SET %s = ? WHERE subdomain = ?", key)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-	_, err := m.DB.Exec(query, value, subdomain)
+	_, err := m.Collection.UpdateOne(
+		ctx,
+		bson.M{"subdomain": subdomain},
+		bson.M{"$set": bson.M{key: value}},
+	)
+
 	return err
 }
 
-
 func (m *SubDomainModel) MarkConnected(subdomain string, ip string, userAgent string) error {
-	query := `
-		UPDATE sub_domain_list
-		SET 
-			is_connected = 1,
-			last_connected_at = NOW(),
-			ip_address = ?,
-			user_agent = ?,
-			failed_auth_count = 0
-		WHERE subdomain = ?
-	`
-	_, err := m.DB.Exec(query, ip, userAgent, subdomain)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := m.Collection.UpdateOne(
+		ctx,
+		bson.M{"subdomain": subdomain},
+		bson.M{
+			"$set": bson.M{
+				"is_connected":     1,
+				"last_connected_at": time.Now(),
+				"ip_address":       ip,
+				"user_agent":       userAgent,
+				"failed_auth_count": 0,
+			},
+		},
+	)
+
 	return err
 }
 
 func (m *SubDomainModel) MarkDisconnected(subdomain string) error {
-	query := `
-		UPDATE sub_domain_list
-		SET 
-			is_connected = 0,
-			last_disconnected_at = NOW()
-		WHERE subdomain = ?
-	`
-	_, err := m.DB.Exec(query, subdomain)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := m.Collection.UpdateOne(
+		ctx,
+		bson.M{"subdomain": subdomain},
+		bson.M{
+			"$set": bson.M{
+				"is_connected":        0,
+				"last_disconnected_at": time.Now(),
+			},
+		},
+	)
+
 	return err
 }
 
 func (m *SubDomainModel) UpdateFailedAuth(subdomain string) error {
-	query := `
-		UPDATE sub_domain_list
-		SET failed_auth_count = failed_auth_count + 1
-		WHERE subdomain = ?
-	`
-	_, err := m.DB.Exec(query, subdomain)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := m.Collection.UpdateOne(
+		ctx,
+		bson.M{"subdomain": subdomain},
+		bson.M{
+			"$inc": bson.M{"failed_auth_count": 1},
+		},
+	)
+
 	return err
 }
