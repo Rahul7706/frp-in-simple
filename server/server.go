@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
@@ -44,10 +43,7 @@ func generateSessionID() string {
 	return hex.EncodeToString(b)
 }
 
-func hashToken(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
-}
+
 
 func recoverSafe(name string) {
 	if r := recover(); r != nil {
@@ -199,7 +195,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		return
 	}
 
-	clientHash := hashToken(reg.Token)
+	clientHash := reg.Token
 
 	if subtle.ConstantTimeCompare(
 		[]byte(clientHash),
