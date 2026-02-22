@@ -58,7 +58,7 @@ func ConnectDB() (*mongo.Database, error) {
 type SubDomain struct {
 	ID               interface{} `bson:"_id,omitempty" json:"id"`
 	Subdomain        string      `bson:"subdomain" json:"subdomain"`
-	TokenHash        string      `bson:"token_hash" json:"token_hash"`
+	TokenHash        string      `bson:"tokenHash" json:"tokenHash"`
 	Status           int         `bson:"status" json:"status"`
 	IsConnected      int         `bson:"is_connected" json:"is_connected"`
 	IsBanned         int         `bson:"is_banned" json:"is_banned"`
