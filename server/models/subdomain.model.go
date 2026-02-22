@@ -60,15 +60,11 @@ type SubDomain struct {
 	Subdomain        string      `bson:"subdomain" json:"subdomain"`
 	TokenHash        string      `bson:"tokenHash" json:"tokenHash"`
 	Status           int         `bson:"status" json:"status"`
-	IsConnected      int         `bson:"is_connected" json:"is_connected"`
-	IsBanned         int         `bson:"is_banned" json:"is_banned"`
+	IsConnected      int         `bson:"isConnected" json:"isConnected"`
+	IsBanned         int         `bson:"isBanned" json:"isBanned"`
 	IP               string      `bson:"ip_address,omitempty" json:"ip_address,omitempty"`
 	UserAgent        string      `bson:"user_agent,omitempty" json:"user_agent,omitempty"`
-	FailedAuthCount  int         `bson:"failed_auth_count,omitempty" json:"failed_auth_count,omitempty"`
-	LastConnectedAt  time.Time   `bson:"last_connected_at,omitempty" json:"last_connected_at,omitempty"`
-	LastDisconnectAt time.Time   `bson:"last_disconnected_at,omitempty" json:"last_disconnected_at,omitempty"`
-	CreatedAt        time.Time   `bson:"created_at,omitempty" json:"created_at,omitempty"`
-	UpdatedAt        time.Time   `bson:"updated_at,omitempty" json:"updated_at,omitempty"`
+	FailedAuthCount  int         `bson:"failedAuthCount,omitempty" json:"failedAuthCount,omitempty"`
 }
 
 type SubDomainModel struct {
@@ -102,8 +98,8 @@ func (m *SubDomainModel) UpdateByKey(subdomain string, key string, value interfa
 
 	allowed := map[string]bool{
 		"status":       true,
-		"is_connected": true,
-		"is_banned":    true,
+		"isConnected": true,
+		"isBanned":    true,
 		"token_hash":   true,
 	}
 
@@ -132,11 +128,11 @@ func (m *SubDomainModel) MarkConnected(subdomain string, ip string, userAgent st
 		bson.M{"subdomain": subdomain},
 		bson.M{
 			"$set": bson.M{
-				"is_connected":      1,
+				"isConnected":      1,
 				"last_connected_at": time.Now(),
 				"ip_address":        ip,
 				"user_agent":        userAgent,
-				"failed_auth_count": 0,
+				"failedAuthCount": 0,
 			},
 		},
 	)
@@ -153,7 +149,7 @@ func (m *SubDomainModel) MarkDisconnected(subdomain string) error {
 		bson.M{"subdomain": subdomain},
 		bson.M{
 			"$set": bson.M{
-				"is_connected":         0,
+				"isConnected":         0,
 				"last_disconnected_at": time.Now(),
 			},
 		},
@@ -170,7 +166,7 @@ func (m *SubDomainModel) UpdateFailedAuth(subdomain string) error {
 		ctx,
 		bson.M{"subdomain": subdomain},
 		bson.M{
-			"$inc": bson.M{"failed_auth_count": 1},
+			"$inc": bson.M{"failedAuthCount": 1},
 		},
 	)
 

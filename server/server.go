@@ -240,7 +240,7 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		model.UpdateFailedAuth(sub)
 
 		if row.FailedAuthCount+1 >= MaxFailedAttempts {
-			model.UpdateByKey(sub, "is_banned", 1)
+			model.UpdateByKey(sub, "isBanned", 1)
 		}
 		return
 	}
@@ -255,12 +255,12 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		ctx,
 		bson.M{
 			"subdomain":    sub,
-			"is_connected": 0,
+			"isConnected": 0,
 		},
 		bson.M{
 			"$set": bson.M{
-				"is_connected": 1,
-				"session_id":   sessionID,
+				"isConnected": 1,
+				"sessions":   sessionID,
 				"connected_at": time.Now(),
 			},
 		},
@@ -296,8 +296,8 @@ func handleClient(conn net.Conn, model *models.SubDomainModel) {
 		bson.M{"subdomain": sub},
 		bson.M{
 			"$set": bson.M{
-				"is_connected": 0,
-				"session_id":   "",
+				"isConnected": 0,
+				"sessions":   "",
 			},
 		},
 	)
