@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	// "log"
 	"os"
 	"time"
 
@@ -89,10 +89,10 @@ func (m *SubDomainModel) GetBySubdomain(subdomain string) (*SubDomain, error) {
 	var sd SubDomain
 	err := m.Collection.FindOne(ctx, bson.M{"subdomain": subdomain}).Decode(&sd)
 	if err != nil {
-			log.Println(err)
+			// log.Println(err)
 		return nil, err
 	}
-	log.Println(&sd,subdomain)
+	// log.Println(&sd,subdomain)
 	return &sd, nil
 }
 
