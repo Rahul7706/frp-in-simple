@@ -82,8 +82,7 @@ func NewSubDomainModel() (*SubDomainModel, error) {
 	}
 
 	return &SubDomainModel{
-		Collection: db.Collection("Subdomain"),
-	}, nil
+		Collection: db.Collection("subdomains")}, nil
 }
 
 func (m *SubDomainModel) GetBySubdomain(subdomain string) (*SubDomain, error) {
@@ -133,10 +132,10 @@ func (m *SubDomainModel) MarkConnected(subdomain string, ip string, userAgent st
 		bson.M{"subdomain": subdomain},
 		bson.M{
 			"$set": bson.M{
-				"is_connected":     1,
+				"is_connected":      1,
 				"last_connected_at": time.Now(),
-				"ip_address":       ip,
-				"user_agent":       userAgent,
+				"ip_address":        ip,
+				"user_agent":        userAgent,
 				"failed_auth_count": 0,
 			},
 		},
@@ -154,7 +153,7 @@ func (m *SubDomainModel) MarkDisconnected(subdomain string) error {
 		bson.M{"subdomain": subdomain},
 		bson.M{
 			"$set": bson.M{
-				"is_connected":        0,
+				"is_connected":         0,
 				"last_disconnected_at": time.Now(),
 			},
 		},
