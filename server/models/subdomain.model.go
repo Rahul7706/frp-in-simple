@@ -55,7 +55,7 @@ func ConnectDB() (*mongo.Database, error) {
 	return client.Database(cfg.DB.Database), nil
 }
 
-type subdomains struct {
+type SubDomain struct {
 	ID               interface{} `bson:"_id,omitempty" json:"id"`
 	Subdomain        string      `bson:"subdomain" json:"subdomain"`
 	TokenHash        string      `bson:"token_hash" json:"token_hash"`
@@ -82,16 +82,16 @@ func NewSubDomainModel() (*SubDomainModel, error) {
 	}
 
 	return &SubDomainModel{
-		Collection: db.Collection("sub_domain_list"),
+		Collection: db.Collection("Subdomain"),
 	}, nil
 }
 
-func (m *SubDomainModel) GetBySubdomain(subdomain string) (*subdomains, error) {
+func (m *SubDomainModel) GetBySubdomain(subdomain string) (*SubDomain, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	var sd subdomains
-	err := m.Collection.FindOne(ctx, bson.M{"subdomains": subdomain}).Decode(&sd)
+	var sd SubDomain
+	err := m.Collection.FindOne(ctx, bson.M{"subdomain": subdomain}).Decode(&sd)
 	if err != nil {
 		return nil, err
 	}
