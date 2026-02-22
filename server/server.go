@@ -44,6 +44,42 @@ func generateSessionID() string {
 }
 
 
+func sendHTML(w http.ResponseWriter) {
+	defaultErrorResponse := `<!DOCTYPE html>
+<html>
+<head>
+	<title>503 Service Unavailable</title>
+	<style>
+		body { background: #F1F1F1; }
+		.box {
+			width: 35em;
+			margin: 0 auto;
+			font-family: Tahoma, Verdana, Arial, sans-serif;
+			background: #FFF;
+			padding: 8px 32px;
+			box-shadow: 0px 0px 16px rgba(0,0,0,0.1);
+			margin-top: 80px;
+			font-weight: 300;
+		}
+		.box h1 { font-weight: 300; }
+	</style>
+</head>
+<body>
+	<div class="box">
+		<h1>503 Service Unavailable</h1>
+		<p>Sorry, the page you are looking for is currently unavailable.
+		Please try again later.</p>
+		<p align="right"><em>Powered by roboticx</em></p>
+	</div>
+</body>
+</html>`
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(503)
+	w.Write([]byte(defaultErrorResponse))
+}
+
+
 
 func recoverSafe(name string) {
 	if r := recover(); r != nil {
@@ -84,7 +120,7 @@ func startHTTPServer(model *models.SubDomainModel) {
 
 		parts := strings.Split(host, ".")
 		if len(parts) < 3 {
-			http.Error(w, "Invalid subdomain", 400)
+			sendHTML(w)
 			return
 		}
 
@@ -92,7 +128,7 @@ func startHTTPServer(model *models.SubDomainModel) {
 
 		row, err := model.GetBySubdomain(sub)
 		if err != nil || row.Status != 1 || row.IsBanned == 1 || row.IsConnected != 1 {
-			http.Error(w, "Service unavailable", 503)
+			sendHTML(w)
 			return
 		}
 
@@ -101,13 +137,13 @@ func startHTTPServer(model *models.SubDomainModel) {
 		mu.RUnlock()
 
 		if session == nil || session.IsClosed() {
-			http.Error(w, "Tunnel offline", 503)
+			sendHTML(w)
 			return
 		}
 
 		stream, err := session.Open()
 		if err != nil {
-			http.Error(w, "Tunnel error", 503)
+			sendHTML(w)
 			return
 		}
 		defer stream.Close()
